@@ -34,7 +34,7 @@
 
 * [CHANGE] Dashboards: Remove per-user series legends from Tenants dashboard. #1605
 * [CHANGE] Dashboards: Show in-memory series and the per-user series limit on Tenants dashboard. #1613
-* [CHANGE] Dashboards: Slow-queries dashboard now uses `user` label from logs instead of `org_id`. #1634 
+* [CHANGE] Dashboards: Slow-queries dashboard now uses `user` label from logs instead of `org_id`. #1634
 * [BUGFIX] Dashboards: Fix "Failed evaluation rate" panel on Tenants dashboard. #1629
 
 ### Jsonnet
