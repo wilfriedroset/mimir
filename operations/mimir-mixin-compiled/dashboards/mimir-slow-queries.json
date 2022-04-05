@@ -132,14 +132,14 @@
                            },
                            "indexByName": {
                               "Time range": 3,
-                              "user": 1,
                               "param_query": 2,
                               "param_step": 4,
                               "response_time": 5,
-                              "ts": 0
+                              "ts": 0,
+                              "user": 1
                            },
                            "renameByName": {
-                              "user": "Tenant ID",
+                              "org_id": "Tenant ID",
                               "param_query": "Query",
                               "param_step": "Step",
                               "response_time": "Duration"
