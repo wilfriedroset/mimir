@@ -21,20 +21,14 @@ type OSThread struct {
 	call       chan func() (interface{}, error)
 	res        chan execResult
 	ctx        context.Context
-	cancel     context.CancelFunc
 	localTasks *atomic.Uint64
 }
 
-func NewOSThread(ctx context.Context, cancel context.CancelFunc) *OSThread {
-	if cancel == nil {
-		ctx, cancel = context.WithCancel(ctx)
-	}
-
+func NewOSThread(ctx context.Context) *OSThread {
 	return &OSThread{
 		call:       make(chan func() (interface{}, error)),
 		res:        make(chan execResult),
 		ctx:        ctx,
-		cancel:     cancel,
 		localTasks: atomic.NewUint64(0),
 	}
 }
@@ -42,11 +36,13 @@ func NewOSThread(ctx context.Context, cancel context.CancelFunc) *OSThread {
 func (o *OSThread) start() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+
 	for {
 		select {
 		case <-o.ctx.Done():
 			return
 		case fn := <-o.call:
+			o.localTasks.Inc()
 			val, err := fn()
 			o.localTasks.Dec()
 			o.res <- execResult{value: val, err: err}
@@ -60,9 +56,7 @@ func (o *OSThread) Start() {
 }
 
 func (o *OSThread) Call(fn func() (interface{}, error)) (interface{}, error) {
-	o.localTasks.Inc()
 	o.call <- fn
-
 	res := <-o.res
 	return res.value, res.err
 }
@@ -74,10 +68,4 @@ func (o *OSThread) Join() {
 			break
 		}
 	}
-
-	o.cancel()
-}
-
-func (o *OSThread) Stop() {
-	o.cancel()
 }

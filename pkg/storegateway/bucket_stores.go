@@ -152,7 +152,7 @@ func NewBucketStores(cfg tsdb.BlocksStorageConfig, shardingStrategy ShardingStra
 	}
 
 	// TODO(56quarters): Make this configurable
-	if u.threadPool, err = mimir_indexheader.NewThreadPool(context.Background(), nil, 1); err != nil {
+	if u.threadPool, err = mimir_indexheader.NewThreadPool(1); err != nil {
 		return nil, errors.Wrap(err, "create index reader thread pool")
 	}
 
@@ -160,8 +160,16 @@ func NewBucketStores(cfg tsdb.BlocksStorageConfig, shardingStrategy ShardingStra
 		reg.MustRegister(u.metaFetcherMetrics)
 	}
 
-	u.Service = services.NewIdleService(nil, u.stopping)
+	u.Service = services.NewIdleService(u.starting, u.stopping)
 	return u, nil
+}
+
+func (u *BucketStores) starting(_ context.Context) error {
+	if u.threadPool != nil {
+		u.threadPool.Start()
+	}
+
+	return nil
 }
 
 func (u *BucketStores) stopping(_ error) error {

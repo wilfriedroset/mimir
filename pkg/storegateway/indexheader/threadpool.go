@@ -18,7 +18,7 @@ type Threadpool struct {
 	numThreads int
 }
 
-func NewThreadPool(ctx context.Context, cancel context.CancelFunc, num int) (*Threadpool, error) {
+func NewThreadPool(num int) (*Threadpool, error) {
 	if num <= 0 {
 		return nil, nil
 	}
@@ -26,10 +26,8 @@ func NewThreadPool(ctx context.Context, cancel context.CancelFunc, num int) (*Th
 	if num >= runtime.GOMAXPROCS(0) {
 		return nil, errors.New("threadpool size must be GOMAXPROCS - 1 at most")
 	}
-	if cancel == nil {
-		ctx, cancel = context.WithCancel(ctx)
-	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	tp := &Threadpool{
 		ctx:        ctx,
 		cancel:     cancel,
@@ -38,8 +36,7 @@ func NewThreadPool(ctx context.Context, cancel context.CancelFunc, num int) (*Th
 	}
 
 	for i := 0; i < num; i++ {
-		childCtx, childCancel := context.WithCancel(ctx)
-		t := NewOSThread(childCtx, childCancel)
+		t := NewOSThread(ctx)
 		t.Start()
 		tp.pool <- t
 	}
