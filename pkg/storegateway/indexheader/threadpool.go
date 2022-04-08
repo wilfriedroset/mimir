@@ -11,6 +11,8 @@ import (
 	"runtime"
 )
 
+var ErrPoolStopped = errors.New("thread pool has been stopped")
+
 type Threadpool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -62,7 +64,15 @@ func (t *Threadpool) Stop() {
 }
 
 func (t *Threadpool) Call(fn func() (interface{}, error)) (interface{}, error) {
-	thread := <-t.pool
-	defer func() { t.pool <- thread }()
-	return thread.Call(fn)
+	select {
+	case <-t.ctx.Done():
+		return nil, ErrPoolStopped
+	case thread := <-t.pool:
+		// TODO(56quarters): Instrument time taken to get a thread from the pool and
+		//  time taken for each task to execute. The threadpool should also make the
+		//  number of running tasks available as a gauge.
+		defer func() { t.pool <- thread }()
+		return thread.Call(fn)
+
+	}
 }

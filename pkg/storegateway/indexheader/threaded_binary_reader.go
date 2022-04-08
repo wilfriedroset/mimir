@@ -32,6 +32,10 @@ func (t *threadedReader) IndexVersion() (int, error) {
 		return t.reader.IndexVersion()
 	})
 
+	if err != nil {
+		return 0, err
+	}
+
 	return val.(int), err
 }
 
@@ -39,6 +43,10 @@ func (t *threadedReader) PostingsOffset(name string, value string) (index.Range,
 	val, err := t.pool.Call(func() (interface{}, error) {
 		return t.reader.PostingsOffset(name, value)
 	})
+
+	if err != nil {
+		return index.Range{}, err
+	}
 
 	return val.(index.Range), err
 }
@@ -48,6 +56,10 @@ func (t *threadedReader) LookupSymbol(o uint32) (string, error) {
 		return t.reader.LookupSymbol(o)
 	})
 
+	if err != nil {
+		return "", err
+	}
+
 	return val.(string), err
 }
 
@@ -56,6 +68,10 @@ func (t *threadedReader) LabelValues(name string) ([]string, error) {
 		return t.reader.LabelValues(name)
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	return val.([]string), err
 }
 
@@ -63,6 +79,10 @@ func (t *threadedReader) LabelNames() ([]string, error) {
 	val, err := t.pool.Call(func() (interface{}, error) {
 		return t.reader.LabelNames()
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	return val.([]string), err
 }

@@ -13,8 +13,9 @@ import (
 )
 
 type execResult struct {
-	value interface{}
-	err   error
+	value     interface{}
+	err       error
+	populated bool
 }
 
 type OSThread struct {
@@ -40,12 +41,17 @@ func (o *OSThread) start() {
 	for {
 		select {
 		case <-o.ctx.Done():
+			// Close the channel used to read results so that any callers waiting on
+			// results (which can happen if they submitted something before this method
+			// has a chance to execute it but after this thread pool has been stopped)
+			// so that they immediately get a zero value which they can check for.
+			close(o.res)
 			return
 		case fn := <-o.call:
 			o.localTasks.Inc()
 			val, err := fn()
 			o.localTasks.Dec()
-			o.res <- execResult{value: val, err: err}
+			o.res <- execResult{value: val, err: err, populated: true}
 			break
 		}
 	}
@@ -56,9 +62,22 @@ func (o *OSThread) Start() {
 }
 
 func (o *OSThread) Call(fn func() (interface{}, error)) (interface{}, error) {
-	o.call <- fn
-	res := <-o.res
-	return res.value, res.err
+	select {
+	case <-o.ctx.Done():
+		// Make sure the pool (and hence this thread) hasn't been stopped before
+		// submitting our function to run. It's still possible for the thread pool
+		// to be stopped between this check and our function actually being run by
+		// the .start() method. We handle this by closing the o.res channel as part
+		// of stopping this thread and testing for a zero being returned (which is
+		// what reading from a closed channel does).
+		return nil, ErrPoolStopped
+	case o.call <- fn:
+		res := <-o.res
+		if !res.populated {
+			return nil, ErrPoolStopped
+		}
+		return res.value, res.err
+	}
 }
 
 func (o *OSThread) Join() {
