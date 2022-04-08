@@ -174,7 +174,7 @@ func (u *BucketStores) starting(_ context.Context) error {
 
 func (u *BucketStores) stopping(_ error) error {
 	if u.threadPool != nil {
-		u.threadPool.Stop()
+		u.threadPool.StopAndWait()
 	}
 
 	return nil

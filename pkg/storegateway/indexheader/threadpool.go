@@ -6,7 +6,6 @@
 package indexheader
 
 import (
-	"context"
 	"errors"
 	"runtime"
 )
@@ -14,9 +13,9 @@ import (
 var ErrPoolStopped = errors.New("thread pool has been stopped")
 
 type Threadpool struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
 	pool       chan *OSThread
+	stopping   chan struct{}
+	stopped    chan struct{}
 	numThreads int
 }
 
@@ -29,16 +28,15 @@ func NewThreadPool(num int) (*Threadpool, error) {
 		return nil, errors.New("threadpool size must be GOMAXPROCS - 1 at most")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	tp := &Threadpool{
-		ctx:        ctx,
-		cancel:     cancel,
 		pool:       make(chan *OSThread, num),
+		stopping:   make(chan struct{}),
+		stopped:    make(chan struct{}),
 		numThreads: num,
 	}
 
 	for i := 0; i < num; i++ {
-		t := NewOSThread(ctx)
+		t := NewOSThread()
 		t.Start()
 		tp.pool <- t
 	}
@@ -47,11 +45,18 @@ func NewThreadPool(num int) (*Threadpool, error) {
 }
 
 func (t *Threadpool) start() {
-	for range t.ctx.Done() {
-		for i := 0; i < t.numThreads; i++ {
-			thread := <-t.pool
-			thread.Join()
-		}
+	defer func() {
+		close(t.stopped)
+	}()
+
+	// The .stopping channel is never written so this blocks until the channel is
+	// closed at which point the threadpool is shutting down, so we want to stop
+	// each of the expected threads in it.
+	<-t.stopping
+	for i := 0; i < t.numThreads; i++ {
+		thread := <-t.pool
+		thread.Stop()
+		thread.Join()
 	}
 }
 
@@ -59,13 +64,17 @@ func (t *Threadpool) Start() {
 	go t.start()
 }
 
-func (t *Threadpool) Stop() {
-	t.cancel()
+func (t *Threadpool) StopAndWait() {
+	// Indicate to all thread that they should stop, then wait for them to do so
+	// by trying to read from a channel that will be closed when all threads have
+	// finally stopped.
+	close(t.stopping)
+	<-t.stopped
 }
 
 func (t *Threadpool) Call(fn func() (interface{}, error)) (interface{}, error) {
 	select {
-	case <-t.ctx.Done():
+	case <-t.stopping:
 		return nil, ErrPoolStopped
 	case thread := <-t.pool:
 		// TODO(56quarters): Instrument time taken to get a thread from the pool and
