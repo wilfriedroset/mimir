@@ -16,6 +16,8 @@ func TestOSThread_Call(t *testing.T) {
 
 		thread := NewOSThread()
 
+		// Don't start the thread but close the results channel. This ensures that we're testing
+		// the case where the pool isn't shutdown yet, but we return a zero value to the caller.
 		close(thread.res)
 		res, err := thread.Call(func() (interface{}, error) {
 			return 42, nil

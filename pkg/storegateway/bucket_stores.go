@@ -151,8 +151,8 @@ func NewBucketStores(cfg tsdb.BlocksStorageConfig, shardingStrategy ShardingStra
 		return nil, errors.Wrap(err, "create chunks bytes pool")
 	}
 
-	// TODO(56quarters): Make this configurable
-	if u.threadPool, err = mimir_indexheader.NewThreadPool(1); err != nil {
+	// Init a thread pool for index header reads (or nil if disabled)
+	if u.threadPool, err = mimir_indexheader.NewThreadPool(cfg.BucketStore.IndexHeaderThreadPoolSize, reg); err != nil {
 		return nil, errors.Wrap(err, "create index reader thread pool")
 	}
 

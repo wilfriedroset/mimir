@@ -7,7 +7,15 @@ package indexheader
 
 import (
 	"errors"
-	"runtime"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+const (
+	LabelWaiting  = "waiting"
+	LabelComplete = "complete"
 )
 
 var ErrPoolStopped = errors.New("thread pool has been stopped")
@@ -17,15 +25,14 @@ type Threadpool struct {
 	stopping   chan struct{}
 	stopped    chan struct{}
 	numThreads int
+
+	timing *prometheus.HistogramVec
+	tasks  prometheus.Gauge
 }
 
-func NewThreadPool(num int) (*Threadpool, error) {
+func NewThreadPool(num int, reg prometheus.Registerer) (*Threadpool, error) {
 	if num <= 0 {
 		return nil, nil
-	}
-
-	if num >= runtime.GOMAXPROCS(0) {
-		return nil, errors.New("threadpool size must be GOMAXPROCS - 1 at most")
 	}
 
 	tp := &Threadpool{
@@ -33,6 +40,15 @@ func NewThreadPool(num int) (*Threadpool, error) {
 		stopping:   make(chan struct{}),
 		stopped:    make(chan struct{}),
 		numThreads: num,
+
+		timing: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Name: "cortex_storegateway_index_header_thread_pool_seconds",
+			Help: "Amount of time spent performing index header operations on a dedicated thread",
+		}, []string{"stage"}),
+		tasks: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "cortex_storegateway_index_header_thread_pool_tasks",
+			Help: "Number of index header operations currently executing",
+		}),
 	}
 
 	for i := 0; i < num; i++ {
@@ -73,15 +89,24 @@ func (t *Threadpool) StopAndWait() {
 }
 
 func (t *Threadpool) Call(fn func() (interface{}, error)) (interface{}, error) {
+	start := time.Now()
+
 	select {
 	case <-t.stopping:
 		return nil, ErrPoolStopped
 	case thread := <-t.pool:
-		// TODO(56quarters): Instrument time taken to get a thread from the pool and
-		//  time taken for each task to execute. The threadpool should also make the
-		//  number of running tasks available as a gauge.
-		defer func() { t.pool <- thread }()
-		return thread.Call(fn)
+		waiting := time.Since(start)
 
+		defer func() {
+			complete := time.Since(start)
+
+			t.pool <- thread
+			t.tasks.Dec()
+			t.timing.WithLabelValues(LabelWaiting).Observe(waiting.Seconds())
+			t.timing.WithLabelValues(LabelComplete).Observe(complete.Seconds())
+		}()
+
+		t.tasks.Inc()
+		return thread.Call(fn)
 	}
 }
