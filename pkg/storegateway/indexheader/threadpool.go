@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	LabelWaiting  = "waiting"
-	LabelComplete = "complete"
+	labelWaiting  = "waiting"
+	labelComplete = "complete"
 )
 
 var ErrPoolStopped = errors.New("thread pool has been stopped")
@@ -115,8 +115,8 @@ func (t *Threadpool) Call(fn func() (interface{}, error)) (interface{}, error) {
 
 			t.pool <- thread
 			t.tasks.Dec()
-			t.timing.WithLabelValues(LabelWaiting).Observe(waiting.Seconds())
-			t.timing.WithLabelValues(LabelComplete).Observe(complete.Seconds())
+			t.timing.WithLabelValues(labelWaiting).Observe(waiting.Seconds())
+			t.timing.WithLabelValues(labelComplete).Observe(complete.Seconds())
 		}()
 
 		t.tasks.Inc()
