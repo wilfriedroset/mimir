@@ -7,40 +7,37 @@ package indexheader
 
 import (
 	"runtime"
-
-	"go.uber.org/atomic"
 )
 
 type execResult struct {
-	value     interface{}
-	err       error
+	value interface{}
+	err   error
+	// populated is only set to `true` by the start method of OSThread. The field only
+	// exists so that we can tell when we've gotten a zero value of it. This is used by
+	// the Call method so that we can detect when the thread is shutting down.
 	populated bool
 }
 
 type OSThread struct {
-	// call is used to submit closures for this thread to execute
+	// call is used to submit closures for this thread to execute.
 	call chan func() (interface{}, error)
 
-	// res is used to send the results of running closures back to callers
+	// res is used to send the results of running closures back to callers.
 	res chan execResult
 
-	// stopping is a request for this thread to stop running
+	// stopping is a request for this thread to stop running.
 	stopping chan struct{}
 
-	// stopped is confirmation that the thread has stopped running
+	// stopped is confirmation that the thread has stopped running.
 	stopped chan struct{}
-
-	// localTasks keeps track of if there are any closures currently running
-	localTasks *atomic.Uint64
 }
 
 func NewOSThread() *OSThread {
 	return &OSThread{
-		call:       make(chan func() (interface{}, error), 1),
-		res:        make(chan execResult, 1),
-		stopping:   make(chan struct{}),
-		stopped:    make(chan struct{}),
-		localTasks: atomic.NewUint64(0),
+		call:     make(chan func() (interface{}, error), 1),
+		res:      make(chan execResult, 1),
+		stopping: make(chan struct{}),
+		stopped:  make(chan struct{}),
 	}
 }
 
@@ -62,9 +59,7 @@ func (o *OSThread) start() {
 			close(o.res)
 			return
 		case fn := <-o.call:
-			o.localTasks.Inc()
 			val, err := fn()
-			o.localTasks.Dec()
 			o.res <- execResult{value: val, err: err, populated: true}
 			break
 		}
@@ -75,17 +70,18 @@ func (o *OSThread) Start() {
 	go o.start()
 }
 
+// Stop indicates to the thread that it should stop accepting new work but, it
+// does *not* guarantee that all work is stopped after the method returns. If
+// you need to wait for all work to complete, call Join after Stop.
 func (o *OSThread) Stop() {
 	close(o.stopping)
 }
 
+// Join waits for the thread to complete any tasks it was executing after Stop
+// is called. This allows callers to ensure the thread has completed executing
+// which is useful in tests to verify no goroutines leak.
 func (o *OSThread) Join() {
-	for range o.stopped {
-		tasks := o.localTasks.Load()
-		if tasks == 0 {
-			break
-		}
-	}
+	<-o.stopped
 }
 
 func (o *OSThread) Call(fn func() (interface{}, error)) (interface{}, error) {

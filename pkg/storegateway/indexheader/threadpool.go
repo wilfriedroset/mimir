@@ -21,32 +21,36 @@ const (
 var ErrPoolStopped = errors.New("thread pool has been stopped")
 
 type Threadpool struct {
-	pool       chan *OSThread
-	stopping   chan struct{}
-	stopped    chan struct{}
-	numThreads int
+	// pool is used for callers to acquire and return threads, blocking when they are all in use.
+	pool chan *OSThread
+	// threads is used to perform operations on all threads at once (such as stopping and shutting down).
+	threads []*OSThread
+	// stopping is closed when calling code wants the threadpool to shut down.
+	stopping chan struct{}
+	// stopped is closed once all threads have stopped running.
+	stopped chan struct{}
 
 	timing *prometheus.HistogramVec
 	tasks  prometheus.Gauge
 }
 
-func NewThreadPool(num int, reg prometheus.Registerer) (*Threadpool, error) {
+func NewThreadPool(num int, reg prometheus.Registerer) *Threadpool {
 	if num <= 0 {
-		return nil, nil
+		return nil
 	}
 
 	tp := &Threadpool{
-		pool:       make(chan *OSThread, num),
-		stopping:   make(chan struct{}),
-		stopped:    make(chan struct{}),
-		numThreads: num,
+		pool:     make(chan *OSThread, num),
+		threads:  make([]*OSThread, num),
+		stopping: make(chan struct{}),
+		stopped:  make(chan struct{}),
 
 		timing: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
-			Name: "cortex_storegateway_index_header_thread_pool_seconds",
+			Name: "cortex_bucket_store_indexheader_thread_pool_seconds",
 			Help: "Amount of time spent performing index header operations on a dedicated thread",
 		}, []string{"stage"}),
 		tasks: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
-			Name: "cortex_storegateway_index_header_thread_pool_tasks",
+			Name: "cortex_bucket_store_indexheader_thread_pool_tasks",
 			Help: "Number of index header operations currently executing",
 		}),
 	}
@@ -54,10 +58,16 @@ func NewThreadPool(num int, reg prometheus.Registerer) (*Threadpool, error) {
 	for i := 0; i < num; i++ {
 		t := NewOSThread()
 		t.Start()
+
+		// Use a slice so that we keep a reference to all threads that are running
+		// and we can easily stop all of them. However, use a channel as the pool
+		// so that we can limit the number of threads in use and block when there
+		// are none available.
+		tp.threads[i] = t
 		tp.pool <- t
 	}
 
-	return tp, nil
+	return tp
 }
 
 func (t *Threadpool) start() {
@@ -65,12 +75,15 @@ func (t *Threadpool) start() {
 		close(t.stopped)
 	}()
 
-	// The .stopping channel is never written so this blocks until the channel is
+	// The t.stopping channel is never written so this blocks until the channel is
 	// closed at which point the threadpool is shutting down, so we want to stop
 	// each of the expected threads in it.
 	<-t.stopping
-	for i := 0; i < t.numThreads; i++ {
-		thread := <-t.pool
+
+	// Stop and wait for all threads, regardless if they are "in" the pool or being
+	// used to run caller code. The avoids race conditions where threads are removed
+	// and added back to the pool while we are trying to stop all of them.
+	for _, thread := range t.threads {
 		thread.Stop()
 		thread.Join()
 	}
