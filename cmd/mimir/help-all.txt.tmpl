@@ -63,6 +63,8 @@ Usage of ./cmd/mimir/mimir:
     	Enable AWS Server Side Encryption. Supported values: SSE-KMS, SSE-S3.
   -alertmanager-storage.s3.tls-handshake-timeout duration
     	Maximum time to wait for a TLS handshake. 0 means no limit. (default 10s)
+  -alertmanager-storage.storage-prefix string
+    	Prefix for backend bucket/container. All files will be stored under this prefix.
   -alertmanager-storage.swift.auth-url string
     	OpenStack Swift authentication URL
   -alertmanager-storage.swift.auth-version int
@@ -429,6 +431,8 @@ Usage of ./cmd/mimir/mimir:
     	Enable AWS Server Side Encryption. Supported values: SSE-KMS, SSE-S3.
   -blocks-storage.s3.tls-handshake-timeout duration
     	Maximum time to wait for a TLS handshake. 0 means no limit. (default 10s)
+  -blocks-storage.storage-prefix string
+    	Prefix for backend bucket/container. All files will be stored under this prefix.
   -blocks-storage.swift.auth-url string
     	OpenStack Swift authentication URL
   -blocks-storage.swift.auth-version int
@@ -1279,6 +1283,8 @@ Usage of ./cmd/mimir/mimir:
     	Enable AWS Server Side Encryption. Supported values: SSE-KMS, SSE-S3.
   -ruler-storage.s3.tls-handshake-timeout duration
     	Maximum time to wait for a TLS handshake. 0 means no limit. (default 10s)
+  -ruler-storage.storage-prefix string
+    	Prefix for backend bucket/container. All files will be stored under this prefix.
   -ruler-storage.swift.auth-url string
     	OpenStack Swift authentication URL
   -ruler-storage.swift.auth-version int
