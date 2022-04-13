@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-# Provenance-includes-location: https://github.com/cortexproject/cortex/packaging/rpm/centos-systemd/Dockerfile
+# Provenance-includes-location: https://github.com/grafana/mimir/packaging/rpm/centos-systemd/Dockerfile
 # Provenance-includes-license: Apache-2.0
-# Provenance-includes-copyright: The Cortex Authors.
+# Provenance-includes-copyright: Grafana Labs.
 
 FROM centos:8
 ENV container docker
