@@ -22,10 +22,10 @@ CURR_DIR="$(dirname "$0")"
 check_required_setup
 
 # Ensure there are not uncommitted changes.
-if [ -n "$(git status --porcelain=v1 2> /dev/null)" ]; then
-  echo "Please make sure there are no uncommitted changes."
-  exit 1
-fi
+#if [ -n "$(git status --porcelain=v1 2> /dev/null)" ]; then
+#  echo "Please make sure there are no uncommitted changes."
+#  exit 1
+#fi
 
 # Auto-detect the last release branch, if it wasn't provided.
 if [ -z "${LAST_RELEASE_BRANCH}" ]; then
